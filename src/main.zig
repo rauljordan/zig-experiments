@@ -76,11 +76,23 @@ pub const Bitlist = struct {
         }
         return true;
     }
-    pub fn not(self: This) Bitlist {
+    // TODO: Leverage const vs. var? Use pointers?
+    pub fn not_with_clone(self: This) !Bitlist {
         if (self.size == 0) {
             return self;
         }
-        return self;
+        var ret = try self.clone();
+        self.not(ret);
+        return ret;
+    }
+    pub fn not(self: This, other: This) void {
+        if (self.size == 0) {
+            return;
+        }
+        var i: usize = 0;
+        for (self.data) |word| {
+            other.data[i] ^= word;
+        }
     }
     pub fn clone(self: This) !Bitlist {
         var new_list: Bitlist = try Bitlist.init(self.size, self.ac);
