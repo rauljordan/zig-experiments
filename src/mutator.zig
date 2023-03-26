@@ -5,7 +5,7 @@ pub fn main() !void {
     var alloc: std.mem.Allocator = arena.allocator();
     defer _ = arena.deinit();
 
-    const num_mutations = 100;
+    const num_mutations = 10000;
     std.debug.print("Running with arena allocator, 1M mutations\n", .{});
     try run_bench(alloc, num_mutations);
     //std.debug.print("\n", .{});
@@ -176,6 +176,16 @@ pub const Mutator = struct {
         const rhs: u3 = @truncate(u3, self.rng.random().int(usize) % 8);
         self.data[offset] = x ^ (lhs << rhs);
         return;
+    }
+
+    fn set(self: *This) !void {
+        _ = self;
+    }
+    fn swap(self: *This) !void {
+        _ = self;
+    }
+    fn copy(self: *This) !void {
+        _ = self;
     }
 
     fn inc_byte(self: *This) !void {
