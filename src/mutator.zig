@@ -5,7 +5,7 @@ pub fn main() !void {
     var alloc: std.mem.Allocator = arena.allocator();
     defer _ = arena.deinit();
 
-    const num_mutations = 10000;
+    const num_mutations = 1_000_000;
     std.debug.print("Running with arena allocator, 1M mutations\n", .{});
     try run_bench(alloc, num_mutations);
     //std.debug.print("\n", .{});
@@ -41,7 +41,56 @@ fn run_bench(alloc: std.mem.Allocator, num_mutations: usize) !void {
     });
 }
 
-pub const Strat = enum { Shrink, Expand, Bit, IncByte, DecByte, NegByte };
+pub const InputDB = struct {
+    num_fn: fn (*InputDB) usize,
+    get_fn: fn (*InputDB, usize) []u8,
+    pub fn num_inputs(db: *InputDB) usize {
+        return db.num_fn();
+    }
+    pub fn get(db: *InputDB, idx: usize) []u8 {
+        return db.get_fn(idx);
+    }
+};
+
+const SimpleDB = struct {
+    iface: InputDB,
+
+    fn init() SimpleDB {
+        return .{
+            // point the interface function pointer to our function
+            .iface = InputDB{
+                .num_inputs = num_inputs,
+                .get = get,
+            },
+        };
+    }
+
+    fn num_inputs(iface: *InputDB) i32 {
+        // Compute pointer to SimpleDB struct from
+        // interface member pointer.
+        const self = @fieldParentPtr(SimpleDB, "iface", iface);
+        _ = self;
+        return 1;
+    }
+
+    fn get(iface: *InputDB, idx: usize) []u8 {
+        _ = idx;
+        // Compute pointer to SimpleDB struct from
+        // interface member pointer.
+        const self = @fieldParentPtr(SimpleDB, "iface", iface);
+        _ = self;
+        return &.{};
+    }
+};
+
+pub const Strat = enum {
+    Shrink,
+    Expand,
+    Bit,
+    IncByte,
+    DecByte,
+    NegByte,
+};
 
 pub const Mutator = struct {
     const This = @This();
@@ -194,7 +243,7 @@ pub const Mutator = struct {
         }
         const offset = self.rand_offset();
         const x = self.data[offset];
-        self.data[offset] = (x + 1) % 7;
+        self.data[offset] = x;
         return;
     }
 
@@ -204,7 +253,7 @@ pub const Mutator = struct {
         }
         const offset = self.rand_offset();
         const x = self.data[offset];
-        self.data[offset] = (x + 1) % 7;
+        self.data[offset] = x;
         return;
     }
 
