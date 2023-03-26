@@ -1,10 +1,22 @@
 const std = @import("std");
 
 pub fn main() !void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var alloc: std.mem.Allocator = arena.allocator();
+    defer _ = arena.deinit();
+
+    std.debug.print("Running with arena allocator, 1M mutations", .{});
+    try run_bench(alloc, 1_000_000);
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    var alloc: std.mem.Allocator = gpa.allocator();
+    alloc = gpa.allocator();
     defer _ = gpa.deinit();
 
+    std.debug.print("Running with general purpose allocator, 1M mutations", .{});
+    try run_bench(alloc, 1_000_000);
+}
+
+fn run_bench(alloc: std.mem.Allocator, num_mutations: usize) !void {
     var mutator = try Mutator.init(100, alloc);
     defer mutator.deinit();
     var items = try mutator.ac.alloc(u8, 8);
@@ -17,9 +29,13 @@ pub fn main() !void {
     });
 
     mutator.input(items);
-    try mutator.mutate(3);
-    std.debug.print("output 0x{x}\n", .{
+
+    var start = try std.time.Instant.now();
+    try mutator.mutate(num_mutations);
+    var end = try std.time.Instant.now();
+    std.debug.print("output 0x{x}, took={}\n", .{
         std.fmt.fmtSliceHexLower(mutator.output()),
+        std.fmt.fmtDuration(end.since(start)),
     });
 }
 
@@ -90,7 +106,6 @@ pub const Mutator = struct {
     }
 
     fn shrink(self: *This) !void {
-        std.debug.print("shrinking\n", .{});
         if (self.data.len == 0) {
             return;
         }
@@ -121,7 +136,6 @@ pub const Mutator = struct {
     }
 
     fn expand(self: *This) !void {
-        std.debug.print("expanding\n", .{});
         if (self.data.len >= self.max_size) {
             return;
         }
