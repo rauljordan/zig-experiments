@@ -5,7 +5,7 @@ pub fn main() !void {
     var alloc: std.mem.Allocator = arena.allocator();
     defer _ = arena.deinit();
 
-    const num_mutations = 10;
+    const num_mutations = 100;
     std.debug.print("Running with arena allocator, 1M mutations\n", .{});
     try run_bench(alloc, num_mutations);
     //std.debug.print("\n", .{});
@@ -41,7 +41,7 @@ fn run_bench(alloc: std.mem.Allocator, num_mutations: usize) !void {
     });
 }
 
-pub const Strat = enum { Shrink, Expand, Bit };
+pub const Strat = enum { Shrink, Expand, Bit, IncByte, DecByte, NegByte };
 
 pub const Mutator = struct {
     const This = @This();
@@ -81,10 +81,13 @@ pub const Mutator = struct {
     }
 
     pub fn mutate(self: *This, times: usize) !void {
-        const strats: [3]Strat = [3]Strat{
+        const strats: [6]Strat = [6]Strat{
             Strat.Shrink,
             Strat.Expand,
             Strat.Bit,
+            Strat.IncByte,
+            Strat.DecByte,
+            Strat.NegByte,
         };
         var i: usize = 0;
         while (i < times) : (i += 1) {
@@ -94,6 +97,9 @@ pub const Mutator = struct {
                 .Shrink => try self.shrink(),
                 .Expand => try self.expand(),
                 .Bit => try self.bit(),
+                .IncByte => try self.inc_byte(),
+                .DecByte => try self.dec_byte(),
+                .NegByte => try self.neg_byte(),
             }
         }
     }
@@ -172,13 +178,33 @@ pub const Mutator = struct {
         return;
     }
 
-    fn inc_byte(self: This, data: []u8) []u8 {
-        _ = self;
-        return data;
+    fn inc_byte(self: *This) !void {
+        if (self.data.len == 0) {
+            return;
+        }
+        const offset = self.rand_offset();
+        const x = self.data[offset];
+        self.data[offset] = (x + 1) % 7;
+        return;
     }
 
-    fn dec_byte(self: This, data: []u8) []u8 {
-        _ = self;
-        return data;
+    fn dec_byte(self: *This) !void {
+        if (self.data.len == 0) {
+            return;
+        }
+        const offset = self.rand_offset();
+        const x = self.data[offset];
+        self.data[offset] = (x + 1) % 7;
+        return;
+    }
+
+    fn neg_byte(self: *This) !void {
+        if (self.data.len == 0) {
+            return;
+        }
+        const offset = self.rand_offset();
+        const x = self.data[offset];
+        self.data[offset] = x;
+        return;
     }
 };
