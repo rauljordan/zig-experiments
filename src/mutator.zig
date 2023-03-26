@@ -5,15 +5,17 @@ pub fn main() !void {
     var alloc: std.mem.Allocator = arena.allocator();
     defer _ = arena.deinit();
 
-    std.debug.print("Running with arena allocator, 1M mutations", .{});
-    try run_bench(alloc, 1_000_000);
+    const num_mutations = 10;
+    std.debug.print("Running with arena allocator, 1M mutations\n", .{});
+    try run_bench(alloc, num_mutations);
+    //std.debug.print("\n", .{});
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    alloc = gpa.allocator();
-    defer _ = gpa.deinit();
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // alloc = gpa.allocator();
+    // defer _ = gpa.deinit();
 
-    std.debug.print("Running with general purpose allocator, 1M mutations", .{});
-    try run_bench(alloc, 1_000_000);
+    // std.debug.print("Running with general purpose allocator, 1M mutations\n", .{});
+    // try run_bench(alloc, num_mutations);
 }
 
 fn run_bench(alloc: std.mem.Allocator, num_mutations: usize) !void {
@@ -39,7 +41,7 @@ fn run_bench(alloc: std.mem.Allocator, num_mutations: usize) !void {
     });
 }
 
-pub const Strat = enum { Shrink, Expand };
+pub const Strat = enum { Shrink, Expand, Bit };
 
 pub const Mutator = struct {
     const This = @This();
@@ -55,7 +57,7 @@ pub const Mutator = struct {
         ac: std.mem.Allocator,
         // TODO: Add customizable entropy source
     ) !This {
-        var rand = std.rand.DefaultPrng.init(33);
+        var rand = std.rand.DefaultPrng.init(1290192);
         return .{
             .data = &.{},
             .max_size = max_size,
@@ -79,9 +81,10 @@ pub const Mutator = struct {
     }
 
     pub fn mutate(self: *This, times: usize) !void {
-        const strats: [2]Strat = [2]Strat{
+        const strats: [3]Strat = [3]Strat{
             Strat.Shrink,
             Strat.Expand,
+            Strat.Bit,
         };
         var i: usize = 0;
         while (i < times) : (i += 1) {
@@ -90,6 +93,7 @@ pub const Mutator = struct {
             switch (st) {
                 .Shrink => try self.shrink(),
                 .Expand => try self.expand(),
+                .Bit => try self.bit(),
             }
         }
     }
@@ -140,21 +144,32 @@ pub const Mutator = struct {
             return;
         }
         const offset = self.rand_offset();
-        _ = offset;
         var max_expand = self.max_size - self.data.len;
-
         if ((self.rng.random().int(usize) % 16) != 0) {
             max_expand = @min(16, max_expand);
         }
         const to_expand = self.rng.random().int(usize) % max_expand;
         var expanded = try self.ac.alloc(u8, to_expand + self.data.len);
+        std.mem.copy(u8, expanded[0..offset], self.data[0..offset]);
+        std.mem.copy(
+            u8,
+            expanded[offset + to_expand .. expanded.len],
+            self.data[offset..self.data.len],
+        );
         self.ac.free(self.data);
         self.input(expanded);
     }
 
-    fn bit(self: This, data: []u8) []u8 {
-        _ = self;
-        return data;
+    fn bit(self: *This) !void {
+        if (self.data.len == 0) {
+            return;
+        }
+        const offset = self.rand_offset();
+        const x = self.data[offset];
+        const lhs: u8 = 1;
+        const rhs: u3 = @truncate(u3, self.rng.random().int(usize) % 8);
+        self.data[offset] = x ^ (lhs << rhs);
+        return;
     }
 
     fn inc_byte(self: This, data: []u8) []u8 {
